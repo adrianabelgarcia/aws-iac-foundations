@@ -213,6 +213,8 @@ The apply role's token is only issued after its GitHub environment's protection 
 
 The state bucket enforces TLS-only access, SSE-KMS with a customer managed key that rotates, versioning, public access blocks, server access logs, and lifecycle rules that expire noncurrent versions while keeping the ten most recent. Lock files are ordinary objects under the same key, so they inherit those controls.
 
+Cross-repository isolation is enforced with ABAC, not only with identity policies. Every CI role carries the principal tag `tf-state-prefix = <repository>`, and the bucket policy denies any tagged principal every object outside `<bucket>/${aws:PrincipalTag/tf-state-prefix}/*`. This matters because the plan roles use the broad `ReadOnlyAccess` managed policy for refresh, which on its own would allow `s3:GetObject` on another repository's state (and the shared CMK would decrypt it). Roles cannot retag themselves: the permission boundary denies all IAM actions on CI roles.
+
 ## How to run
 
 Requirements: Terraform 1.10 or later (CI uses 1.12.0), tflint 0.66, checkov, OPA 1.22, conftest 0.71, actionlint 1.7 and, for the bootstrap only, AWS credentials for the target account.

@@ -88,6 +88,12 @@ resource "aws_iam_role" "plan" {
   description          = "Read-only Terraform plan role for ${each.key}. Trusted for pull_request and default-branch runs."
   assume_role_policy   = data.aws_iam_policy_document.plan_trust[each.key].json
   max_session_duration = 3600
+
+  # ABAC key enforced by the state bucket policy (bootstrap/): this role can only
+  # read or write objects under its own repository prefix.
+  tags = {
+    "tf-state-prefix" = each.key
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "plan_read_only" {

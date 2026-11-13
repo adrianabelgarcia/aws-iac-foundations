@@ -8,23 +8,33 @@ updates:
       github-actions:
         patterns:
           - "*"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directory: /bootstrap
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directory: /github-oidc
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directory: /modules/tags
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directory: /modules/vpc
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

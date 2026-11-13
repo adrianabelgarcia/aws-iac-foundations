@@ -92,6 +92,12 @@ resource "aws_iam_role" "apply" {
   assume_role_policy   = data.aws_iam_policy_document.apply_trust[each.key].json
   permissions_boundary = aws_iam_policy.permission_boundary.arn
   max_session_duration = 3600
+
+  # ABAC key enforced by the state bucket policy (bootstrap/): this role can only
+  # read or write objects under its own repository prefix.
+  tags = {
+    "tf-state-prefix" = each.key
+  }
 }
 
 resource "aws_iam_role_policy" "apply" {

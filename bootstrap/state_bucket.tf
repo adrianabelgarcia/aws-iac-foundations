@@ -101,6 +101,29 @@ data "aws_iam_policy_document" "state_bucket" {
       values   = ["false"]
     }
   }
+
+  # ABAC isolation between stacks. CI roles created by github-oidc/ carry the
+  # principal tag `tf-state-prefix = <repository>`. Read-only roles use the broad
+  # ReadOnlyAccess managed policy for refresh, so without this guard one
+  # repository's plan role could read another repository's state (and its
+  # secrets). Any tagged principal is denied every object outside its own prefix.
+  statement {
+    sid           = "DenyCrossStackStateAccess"
+    effect        = "Deny"
+    actions       = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion"]
+    not_resources = ["${local.state_bucket_arn}/$${aws:PrincipalTag/tf-state-prefix}/*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Null"
+      variable = "aws:PrincipalTag/tf-state-prefix"
+      values   = ["false"]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "state" {
