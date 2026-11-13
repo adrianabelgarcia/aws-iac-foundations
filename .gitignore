@@ -1,0 +1,35 @@
+# Terraform working files. Lock files (.terraform.lock.hcl) are intentionally NOT ignored.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Policy-check and CI artifacts
+plan.json
+plan.txt
+conftest-output.*
+
+# Linter caches
+.tflint.d/
+
+# OS and editor noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# AI assistant / MCP tooling (never committed)
+CLAUDE.md
+.claude/
+.mcp.json
+mcp*.json
+AGENTS.md

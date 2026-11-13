@@ -1,0 +1,166 @@
+# CI for this repository. Everything here runs without AWS credentials.
+# The reusable workflow is called locally, exactly as consumer repositories call it.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Lint workflows
+        run: |
+          docker run --rm -v "${GITHUB_WORKSPACE}:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+  bootstrap:
+    name: bootstrap
+    uses: ./.github/workflows/terraform.yml
+    with:
+      working-directory: bootstrap
+      environment: staging
+      aws-role-arn: ""
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+  github-oidc:
+    name: github-oidc
+    uses: ./.github/workflows/terraform.yml
+    with:
+      working-directory: github-oidc
+      environment: staging
+      aws-role-arn: ""
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+  module-tags:
+    name: module tags
+    uses: ./.github/workflows/terraform.yml
+    with:
+      working-directory: modules/tags
+      environment: staging
+      aws-role-arn: ""
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+  module-vpc:
+    name: module vpc
+    uses: ./.github/workflows/terraform.yml
+    with:
+      working-directory: modules/vpc
+      environment: staging
+      aws-role-arn: ""
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+  terraform-test:
+    name: terraform test (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [modules/tags, modules/vpc]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.12.0"
+          terraform_wrapper: false
+
+      - name: terraform init (no backend)
+        run: terraform init -backend=false -input=false -no-color
+
+      # Tests use mock_provider and command = plan or apply, so they need no AWS credentials.
+      - name: terraform test
+        run: terraform test -no-color
+
+  policy-tests:
+    name: policy unit tests (opa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: v1.22.4
+
+      - name: opa test
+        run: opa test -v policies/
+
+  policy-fixtures:
+    name: policy fixtures (conftest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CONFTEST_VERSION: "0.71.1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install conftest
+        run: |
+          set -euo pipefail
+          install_dir="${RUNNER_TEMP}/conftest"
+          base_url="https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}"
+          archive="conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          mkdir -p "${install_dir}"
+          curl -sSfL -o "${install_dir}/checksums.txt" "${base_url}/checksums.txt"
+          curl -sSfL -o "${install_dir}/${archive}" "${base_url}/${archive}"
+          (cd "${install_dir}" && grep " ${archive}\$" checksums.txt | sha256sum -c -)
+          tar -xzf "${install_dir}/${archive}" -C "${install_dir}" conftest
+          echo "${install_dir}" >> "$GITHUB_PATH"
+
+      - name: Compliant plan must pass
+        run: |
+          conftest test policies/fixtures/compliant/plan.json \
+            --policy policies --all-namespaces --no-color
+
+      - name: Violating plan must fail
+        run: |
+          if conftest test policies/fixtures/violations/plan.json \
+            --policy policies --all-namespaces --no-color; then
+            echo "::error::the violations fixture passed policy checks; the policies are not enforcing"
+            exit 1
+          fi

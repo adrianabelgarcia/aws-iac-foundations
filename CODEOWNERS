@@ -1,0 +1,9 @@
+# Default owner for everything not matched below.
+*                    @adrianabelgarcia
+
+# Shared foundation: changes here affect every consuming repository.
+/.github/workflows/  @adrianabelgarcia
+/policies/           @adrianabelgarcia
+/bootstrap/          @adrianabelgarcia
+/github-oidc/        @adrianabelgarcia
+/modules/            @adrianabelgarcia

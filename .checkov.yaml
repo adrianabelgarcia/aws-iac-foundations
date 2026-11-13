@@ -1,0 +1,12 @@
+# Checkov configuration shared by this repository and by the reusable workflow.
+# The reusable workflow runs checkov from the repository root, so this file is picked up
+# automatically. Scan targets are passed per job (bootstrap, github-oidc, modules/*).
+framework:
+  - terraform
+skip-path:
+  - .terraform
+  - .git
+download-external-modules: false
+soft-fail: false
+compact: true
+quiet: true

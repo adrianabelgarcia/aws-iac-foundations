@@ -1,0 +1,387 @@
+# Reusable Terraform pipeline: the platform standard for every AWS repository (see docs/adr/0003).
+#
+# Contract (v1). Input names are stable; new inputs are only ever added as optional.
+#   working-directory   (string, required)  Terraform root, relative to the repository root.
+#   environment         (string, required)  GitHub environment for the apply job. Its protection rules gate applies.
+#   aws-region          (string)            Default us-east-1.
+#   aws-role-arn        (string)            Read-only plan role. Empty skips plan and apply.
+#   aws-apply-role-arn  (string)            Write role for apply. Empty falls back to aws-role-arn. Added after v1.0 as optional.
+#   apply               (boolean)           Apply the saved plan. Callers should pass true only on the default branch.
+#   terraform-version   (string)            Default 1.12.0.
+#
+# Jobs: static (never needs AWS) -> plan (needs aws-role-arn) -> apply (needs apply and aws-role-arn).
+#
+# Callers must grant: permissions: { id-token: write, contents: read, pull-requests: write }
+
+name: terraform
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Terraform root to run, relative to the repository root, for example environments/staging.
+        required: true
+        type: string
+      environment:
+        description: GitHub environment used by the apply job. Protection rules on it gate production applies.
+        required: true
+        type: string
+      aws-region:
+        description: AWS region for the credentials and the default provider region.
+        required: false
+        type: string
+        default: us-east-1
+      aws-role-arn:
+        description: Read-only plan role ARN. When empty, the plan and apply jobs are skipped and only static checks run.
+        required: false
+        type: string
+        default: ""
+      aws-apply-role-arn:
+        description: Write role ARN used by the apply job. When empty, aws-role-arn is used.
+        required: false
+        type: string
+        default: ""
+      apply:
+        description: Apply the saved plan in the apply job. Pass true only for pushes to the default branch.
+        required: false
+        type: boolean
+        default: false
+      terraform-version:
+        description: Terraform CLI version.
+        required: false
+        type: string
+        default: "1.12.0"
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  static:
+    name: static (${{ inputs.working-directory }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.66.0
+
+      - name: terraform fmt
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform init (no backend)
+        id: init
+        run: terraform init -backend=false -input=false -no-color
+
+      - name: terraform validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: tflint
+        id: tflint
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Use the repository's .tflint.hcl when present, otherwise tflint defaults.
+          config_args=()
+          if [[ -f "${GITHUB_WORKSPACE}/.tflint.hcl" ]]; then
+            config_args=(--config "${GITHUB_WORKSPACE}/.tflint.hcl")
+          fi
+          tflint "${config_args[@]}" --init
+          tflint "${config_args[@]}" --format=compact
+
+      - name: checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12.1347.0
+        with:
+          # checkov auto-loads .checkov.yaml from the repository root when present.
+          directory: ${{ inputs.working-directory }}
+          framework: terraform
+          soft_fail: false
+          output_format: cli
+
+      - name: Static checks summary
+        if: always()
+        shell: bash
+        env:
+          FMT: ${{ steps.fmt.outcome }}
+          INIT: ${{ steps.init.outcome }}
+          VALIDATE: ${{ steps.validate.outcome }}
+          TFLINT: ${{ steps.tflint.outcome }}
+          CHECKOV: ${{ steps.checkov.outcome }}
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        run: |
+          {
+            echo "### Static checks: \`${WORKING_DIRECTORY}\`"
+            echo ""
+            echo "| Check | Outcome |"
+            echo "| --- | --- |"
+            echo "| terraform fmt | ${FMT} |"
+            echo "| terraform init (no backend) | ${INIT} |"
+            echo "| terraform validate | ${VALIDATE} |"
+            echo "| tflint | ${TFLINT} |"
+            echo "| checkov | ${CHECKOV} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  plan:
+    name: plan (${{ inputs.working-directory }})
+    if: ${{ success() && inputs.aws-role-arn != '' }}
+    needs: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    concurrency:
+      group: terraform-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Policies are read from the v1 tag, which moves with this workflow's major version. GitHub does not
+      # expose the called workflow's own SHA to the job, so the tag is the closest reliable reference.
+      - name: Check out policies (aws-iac-foundations v1)
+        uses: actions/checkout@v4
+        with:
+          repository: adrianabelgarcia/aws-iac-foundations
+          ref: v1
+          path: .foundations
+          persist-credentials: false
+
+      - name: Compute plan artifact name
+        id: artifact
+        shell: bash
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        run: |
+          safe="${WORKING_DIRECTORY//\//_}"
+          safe="${safe//./_}"
+          echo "name=tfplan-${safe}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (plan role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          role-session-name: gha-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: Install conftest
+        env:
+          CONFTEST_VERSION: "0.71.1"
+        run: |
+          set -euo pipefail
+          install_dir="${RUNNER_TEMP}/conftest"
+          base_url="https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}"
+          archive="conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          mkdir -p "${install_dir}"
+          curl -sSfL -o "${install_dir}/checksums.txt" "${base_url}/checksums.txt"
+          curl -sSfL -o "${install_dir}/${archive}" "${base_url}/${archive}"
+          (cd "${install_dir}" && grep " ${archive}\$" checksums.txt | sha256sum -c -)
+          tar -xzf "${install_dir}/${archive}" -C "${install_dir}" conftest
+          echo "${install_dir}" >> "$GITHUB_PATH"
+
+      - name: terraform init
+        run: terraform init -backend-config=backend.hcl -input=false -no-color
+
+      - name: terraform plan
+        id: plan
+        run: terraform plan -input=false -lock-timeout=5m -no-color -out=tfplan
+
+      - name: Render plan text and JSON
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          terraform show -json tfplan > plan.json
+
+      - name: Enforce policies (conftest)
+        run: |
+          conftest test plan.json \
+            --policy "${GITHUB_WORKSPACE}/.foundations/policies" \
+            --all-namespaces \
+            --no-color \
+            --output table
+
+      - name: Plan summary
+        if: always()
+        shell: bash
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        run: |
+          {
+            echo "## Terraform plan: \`${WORKING_DIRECTORY}\`"
+            echo ""
+            if [[ -f plan.txt ]]; then
+              grep -E '^(Plan: |No changes\.)' plan.txt || echo "No plan summary line found."
+              echo ""
+              echo "<details><summary>Plan output</summary>"
+              echo ""
+              echo '```terraform'
+              head -c 60000 plan.txt
+              echo ""
+              echo '```'
+              echo "</details>"
+            else
+              echo "The plan did not produce output. See the job log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post plan to pull request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const workingDirectory = process.env.WORKING_DIRECTORY;
+            const marker = `<!-- terraform-plan:${workingDirectory} -->`;
+            const planFile = path.join(process.env.GITHUB_WORKSPACE, workingDirectory, 'plan.txt');
+            let planText = 'The plan did not produce output. See the job log.';
+            if (fs.existsSync(planFile)) {
+              planText = fs.readFileSync(planFile, 'utf8');
+            }
+            const maxChars = 60000;
+            if (planText.length > maxChars) {
+              planText = planText.slice(0, maxChars) + '\n... truncated, see the job summary ...';
+            }
+            const body = [
+              marker,
+              `### Terraform plan \`${workingDirectory}\``,
+              `Status: **${process.env.PLAN_OUTCOME}**`,
+              '',
+              '<details><summary>Plan output</summary>',
+              '',
+              '```terraform',
+              planText,
+              '```',
+              '</details>',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            // One sticky comment per working directory: update it on every push instead of adding new ones.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          # Only the binary plan is uploaded. plan.json contains sensitive values in clear text, so it stays on the runner.
+          path: ${{ inputs.working-directory }}/tfplan
+          if-no-files-found: error
+          retention-days: 5
+
+  apply:
+    name: apply (${{ inputs.working-directory }} -> ${{ inputs.environment }})
+    if: ${{ success() && inputs.aws-role-arn != '' && inputs.apply }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: terraform-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compute plan artifact name
+        id: artifact
+        shell: bash
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        run: |
+          safe="${WORKING_DIRECTORY//\//_}"
+          safe="${safe//./_}"
+          echo "name=tfplan-${safe}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the reviewed plan
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ runner.temp }}/plan
+
+      - name: Configure AWS credentials (apply role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws-apply-role-arn != '' && inputs.aws-apply-role-arn || inputs.aws-role-arn }}
+          role-session-name: gha-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -backend-config=backend.hcl -input=false -no-color
+
+      # Applies exactly the plan that was reviewed and policy-checked, not a fresh plan.
+      - name: terraform apply (saved plan)
+        run: terraform apply -input=false -no-color -lock-timeout=10m "${RUNNER_TEMP}/plan/tfplan"
+
+      - name: Apply summary
+        if: always()
+        shell: bash
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          {
+            echo "## Terraform apply: \`${WORKING_DIRECTORY}\` in \`${TARGET_ENVIRONMENT}\`"
+            echo ""
+            echo "The saved plan from the plan job was applied."
+          } >> "$GITHUB_STEP_SUMMARY"

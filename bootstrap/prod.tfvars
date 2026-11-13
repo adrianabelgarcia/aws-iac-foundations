@@ -1,0 +1,8 @@
+aws_region          = "us-east-1"
+expected_account_id = "222222222222"
+organization        = "acme"
+environment         = "shared"
+project             = "aws-iac-foundations"
+owner               = "platform-sre"
+cost_center         = "PLAT-1000"
+repository          = "adrianabelgarcia/aws-iac-foundations"

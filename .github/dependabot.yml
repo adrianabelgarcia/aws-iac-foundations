@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: terraform
+    directory: /bootstrap
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directory: /github-oidc
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directory: /modules/tags
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directory: /modules/vpc
+    schedule:
+      interval: weekly
