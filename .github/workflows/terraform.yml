@@ -115,13 +115,20 @@ jobs:
 
       - name: checkov
         id: checkov
-        uses: bridgecrewio/checkov-action@v12.1347.0
-        with:
-          # checkov auto-loads .checkov.yaml from the repository root when present.
-          directory: ${{ inputs.working-directory }}
-          framework: terraform
-          soft_fail: false
-          output_format: cli
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        env:
+          CHECKOV_VERSION: "3.4.5"
+          TARGET_DIR: ${{ inputs.working-directory }}
+        # Pinned checkov CLI (not the docker action) so CI runs the exact
+        # version engineers run locally via `make lint`.
+        run: |
+          pipx install "checkov==${CHECKOV_VERSION}" >/dev/null
+          config_args=()
+          if [[ -f .checkov.yaml ]]; then
+            config_args=(--config-file .checkov.yaml)
+          fi
+          checkov "${config_args[@]}" -d "${TARGET_DIR}" --framework terraform
 
       - name: Static checks summary
         if: always()
