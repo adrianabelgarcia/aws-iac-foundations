@@ -71,18 +71,18 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ inputs.terraform-version }}
           terraform_wrapper: false
 
       - name: Set up TFLint
-        uses: terraform-linters/setup-tflint@v4
+        uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: v0.66.0
 
@@ -115,7 +115,7 @@ jobs:
 
       - name: checkov
         id: checkov
-        uses: bridgecrewio/checkov-action@v12.1347.0
+        uses: bridgecrewio/checkov-action@v12.3139.0
         with:
           # checkov auto-loads .checkov.yaml from the repository root when present.
           directory: ${{ inputs.working-directory }}
@@ -164,14 +164,14 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       # Policies are read from the v1 tag, which moves with this workflow's major version. GitHub does not
       # expose the called workflow's own SHA to the job, so the tag is the closest reliable reference.
       - name: Check out policies (aws-iac-foundations v1)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: adrianabelgarcia/aws-iac-foundations
           ref: v1
@@ -189,14 +189,14 @@ jobs:
           echo "name=tfplan-${safe}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials (plan role)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ inputs.aws-role-arn }}
           role-session-name: gha-plan-${{ github.run_id }}-${{ github.run_attempt }}
           aws-region: ${{ inputs.aws-region }}
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ inputs.terraform-version }}
           terraform_wrapper: false
@@ -262,7 +262,7 @@ jobs:
 
       - name: Post plan to pull request
         if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           WORKING_DIRECTORY: ${{ inputs.working-directory }}
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
@@ -307,7 +307,7 @@ jobs:
             }
 
       - name: Upload plan artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifact.outputs.name }}
           # Only the binary plan is uploaded. plan.json contains sensitive values in clear text, so it stays on the runner.
@@ -333,7 +333,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -348,20 +348,20 @@ jobs:
           echo "name=tfplan-${safe}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Download the reviewed plan
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.artifact.outputs.name }}
           path: ${{ runner.temp }}/plan
 
       - name: Configure AWS credentials (apply role)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ inputs.aws-apply-role-arn != '' && inputs.aws-apply-role-arn || inputs.aws-role-arn }}
           role-session-name: gha-apply-${{ github.run_id }}-${{ github.run_attempt }}
           aws-region: ${{ inputs.aws-region }}
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ inputs.terraform-version }}
           terraform_wrapper: false
