@@ -15,6 +15,7 @@ terraform.rc
 
 # Policy-check and CI artifacts
 plan.json
+!policies/fixtures/**/plan.json
 plan.txt
 conftest-output.*
 

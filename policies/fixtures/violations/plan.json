@@ -1,0 +1,269 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.12.0",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.leaky",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "leaky",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-leaky",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_public_access_block.leaky",
+      "mode": "managed",
+      "type": "aws_s3_bucket_public_access_block",
+      "name": "leaky",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-leaky",
+          "block_public_acls": false,
+          "block_public_policy": true,
+          "ignore_public_acls": true,
+          "restrict_public_buckets": true
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_acl.leaky",
+      "mode": "managed",
+      "type": "aws_s3_bucket_acl",
+      "name": "leaky",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-leaky",
+          "acl": "public-read"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_policy.leaky",
+      "mode": "managed",
+      "type": "aws_s3_bucket_policy",
+      "name": "leaky",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-leaky",
+          "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Sid\": \"Open\", \"Effect\": \"Allow\", \"Principal\": \"*\", \"Action\": \"s3:GetObject\", \"Resource\": \"arn:aws:s3:::acme-leaky/*\"}]}"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_security_group.bastion",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "bastion",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "bastion",
+          "ingress": [
+            {
+              "protocol": "tcp",
+              "from_port": 22,
+              "to_port": 22,
+              "cidr_blocks": [
+                "0.0.0.0/0"
+              ],
+              "ipv6_cidr_blocks": []
+            }
+          ],
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_vpc_security_group_ingress_rule.all",
+      "mode": "managed",
+      "type": "aws_vpc_security_group_ingress_rule",
+      "name": "all",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "cidr_ipv4": null,
+          "cidr_ipv6": "::/0",
+          "ip_protocol": "-1",
+          "from_port": null,
+          "to_port": null,
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_ebs_volume.scratch",
+      "mode": "managed",
+      "type": "aws_ebs_volume",
+      "name": "scratch",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "encrypted": false,
+          "availability_zone": "us-east-1a",
+          "size": 20,
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_kms_key.legacy",
+      "mode": "managed",
+      "type": "aws_kms_key",
+      "name": "legacy",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "enable_key_rotation": false,
+          "key_usage": "ENCRYPT_DECRYPT",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_db_instance.legacy",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "legacy",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "storage_encrypted": false,
+          "engine": "mysql",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket.plain",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "plain",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-plain",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_public_access_block.plain",
+      "mode": "managed",
+      "type": "aws_s3_bucket_public_access_block",
+      "name": "plain",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-plain",
+          "block_public_acls": true,
+          "block_public_policy": true,
+          "ignore_public_acls": true,
+          "restrict_public_buckets": true
+        },
+        "after_unknown": {}
+      }
+    }
+  ]
+}

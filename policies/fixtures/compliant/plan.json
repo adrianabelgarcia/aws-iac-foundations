@@ -1,0 +1,270 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.12.0",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.data",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "data",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-prod-data",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_public_access_block.data",
+      "mode": "managed",
+      "type": "aws_s3_bucket_public_access_block",
+      "name": "data",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-prod-data",
+          "block_public_acls": true,
+          "block_public_policy": true,
+          "ignore_public_acls": true,
+          "restrict_public_buckets": true
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_s3_bucket_server_side_encryption_configuration.data",
+      "mode": "managed",
+      "type": "aws_s3_bucket_server_side_encryption_configuration",
+      "name": "data",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "acme-prod-data",
+          "rule": [
+            {
+              "apply_server_side_encryption_by_default": [
+                {
+                  "sse_algorithm": "aws:kms",
+                  "kms_master_key_id": "arn:aws:kms:us-east-1:111111111111:key/abc"
+                }
+              ],
+              "bucket_key_enabled": true
+            }
+          ]
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_security_group.web",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "web",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "web",
+          "ingress": [
+            {
+              "protocol": "tcp",
+              "from_port": 443,
+              "to_port": 443,
+              "cidr_blocks": [
+                "0.0.0.0/0"
+              ],
+              "ipv6_cidr_blocks": [],
+              "description": "https"
+            }
+          ],
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_vpc_security_group_ingress_rule.http",
+      "mode": "managed",
+      "type": "aws_vpc_security_group_ingress_rule",
+      "name": "http",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "cidr_ipv4": "0.0.0.0/0",
+          "ip_protocol": "tcp",
+          "from_port": 80,
+          "to_port": 80,
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_vpc_security_group_ingress_rule.internal",
+      "mode": "managed",
+      "type": "aws_vpc_security_group_ingress_rule",
+      "name": "internal",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "cidr_ipv4": "10.20.0.0/16",
+          "ip_protocol": "tcp",
+          "from_port": 22,
+          "to_port": 22,
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_kms_key.app",
+      "mode": "managed",
+      "type": "aws_kms_key",
+      "name": "app",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "enable_key_rotation": true,
+          "key_usage": "ENCRYPT_DECRYPT",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_ebs_volume.data",
+      "mode": "managed",
+      "type": "aws_ebs_volume",
+      "name": "data",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "encrypted": true,
+          "availability_zone": "us-east-1a",
+          "size": 100,
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_db_instance.orders",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "orders",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "storage_encrypted": true,
+          "engine": "postgres",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_iam_role.node",
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "node",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "acme-eks-node",
+          "tags_all": {
+            "Project": "aws-eks-platform",
+            "Environment": "prod",
+            "Owner": "platform-sre",
+            "CostCenter": "PLAT-1024",
+            "DataClassification": "internal",
+            "ManagedBy": "terraform"
+          }
+        },
+        "after_unknown": {}
+      }
+    }
+  ]
+}
